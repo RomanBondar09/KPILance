@@ -1,0 +1,32 @@
+image: ruby:2.3.1
+services:
+  - postgres:9.5
+variables:
+   POSTGRES_DB: db_name
+   POSTGRES_USER: postgres
+   POSTGRES_PASSWORD: postgres
+cache:
+  key: 'kpilance'
+  paths:
+    - vendor/bundle
+before_script:
+  - echo "deb http://apt.postgresql.org/pub/repos/apt/ xenial-pgdg main" >> /etc/apt/sources.list.d/postgresql.list
+  - wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
+  - apt-get update -qq && apt-get install -y -qq nodejs libsqlite3-dev postgresql-client-9.5 postgresql-contrib
+  - ruby -v
+  - which ruby
+  - gem install bundler --no-ri --no-rdoc
+  - bundle install --deployment --path vendor/bundle --jobs $(nproc)  "${FLAGS[@]}"
+  - cp .env.example .env
+tests:
+  script:
+    - RAILS_ENV=test bundle exec rake db:create db:migrate
+    - RAILS_ENV=test bundle exec rspec
+staging:
+  type: deploy
+  script:
+  - gem install dpl
+  - dpl --provider=heroku --app=kpilance-server --api-key=$HEROKU_STAGING_API_KEY
+  - "curl -n -X POST https://api.heroku.com/apps/kpilance-server/ps -H \"Accept: application/json\" -H \"Authorization: Bearer ${HEROKU_STAGING_API_KEY}\" -d \"command=bundle exec rails db:migrate\""
+  only:
+  - master
